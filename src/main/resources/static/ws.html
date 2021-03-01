@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>WebSocket客户端</title>
+    <script src="./js/sockjs.min.js"></script>
+    <style type="text/css"></style>
+  </head>
+  <body>
+    <div class="fake" style="float: left; width: 400px">
+      <style>
+        .fake {
+          background-color: rgb(236, 236, 236);
+          height: 100%;
+        }
+        .phonehead {
+          background-color: rgb(236, 236, 236);
+          height: 5%;
+          width: 100%;
+          font-size: 13px;
+          font-weight: 800;
+          overflow: auto;
+          padding: 5px 0;
+        }
+        .line1 {
+          width: 100%;
+          float: left;
+        }
+        .chathead {
+          background-color: rgb(236, 236, 236);
+          height: 13%;
+          width: 100%;
+          font-size: 18px;
+          font-weight: 800;
+          overflow: auto;
+          padding: 3px 0 3px 0;
+        }
+        .chat {
+          overflow: scroll;
+          background-color: rgb(236, 236, 236);
+          height: 577px;
+          border-top: 1px solid rgb(214, 214, 214);
+          border-bottom: 1px solid rgb(214, 214, 214);
+          padding: 5px 0 0 0;
+        }
+        .avatar1 {
+          padding: 0 10px;
+          float: left;
+        }
+        .avatar1 img {
+          height: 45px;
+          border-radius: 4px;
+        }
+        .avatar2 {
+          padding: 0 10px;
+          float: left;
+        }
+        .avatar2 img {
+          height: 45px;
+          border-radius: 4px;
+        }
+        .dialog1 {
+          /* 左边儿的对话框 */
+          margin: 5px 3px;
+          float: left;
+          clear: both;
+        }
+        .dialog2 {
+          /* 右边儿的对话框 */
+          margin: 5px 3px;
+          float: right;
+          clear: both;
+        }
+        .word1 {
+          /* ref: https://blog.csdn.net/weixin_30379911/article/details/99922923 */
+          margin-left: 10px;
+          left: 3px;
+          min-width: 20px;
+          max-width: 240px;
+          background: white;
+          -webkit-border-radius: 5px;
+          -moz-border-radius: 5px;
+          border-radius: 5px;
+          font-size: 18px;
+          color: black;
+          word-break: break-word;
+          position: relative;
+          padding: 10px 14px;
+          float: left;
+        }
+        .word1::before {
+          content: "";
+          position: absolute;
+          width: 0;
+          height: 0;
+          left: -12px;
+          top: 15px;
+          border: 6px solid;
+          border-color: transparent white transparent transparent;
+        }
+        .word2 {
+          margin-right: 10px;
+          right: 3px;
+          min-width: 20px;
+          max-width: 240px;
+          background: rgb(150 237 107);
+          -webkit-border-radius: 5px;
+          -moz-border-radius: 5px;
+          border-radius: 5px;
+          font-size: 18px;
+          color: black;
+          word-break: break-word;
+          position: relative;
+          padding: 10px 14px;
+          float: left;
+        }
+        .word2::before {
+          content: "";
+          position: absolute;
+          width: 0;
+          height: 0;
+          right: -12px;
+          top: 12px;
+          border: 6px solid;
+          border-color: transparent transparent transparent rgb(150 237 107);
+        }
+        .nickname1 {
+          font-size: 12px;
+          color: #999999;
+          margin-left: 10px;
+          margin-bottom: 5px;
+        }
+        .nickname2 {
+          font-size: 12px;
+          color: #999999;
+          margin-right: 10px;
+          margin-left: 290px;
+          margin-bottom: 5px;
+        }
+        .reply {
+          height: 58px;
+          background-color: rgb(245 245 245);
+        }
+        .reply-text {
+          height: 50px;
+          width: 70%;
+        }
+        .send-button {
+          width: 25%;
+          height: 50px;
+        }
+      </style>
+
+      <div class="chathead">
+        <!-- 对话框头部 -->
+        <div class="line1" style="text-align: center">LSP聊天室</div>
+      </div>
+      <div class="chat" id="log">
+        <!-- 对话内容 -->
+        <div class="dialog1">
+          <div class="nickname1"></div>
+          <div class="word1">hello</div>
+        </div>
+      </div>
+      <div class="reply">
+        <!-- 回复内容 -->
+        <input
+          class="reply-text"
+          type="text"
+          id="text"
+          onkeypress="return keypress(event)"
+        />
+        <button class="send-button" onclick="sent()">发送</button>
+      </div>
+    </div>
+
+    <script src="./js/random-name.js"></script>
+    <script type="text/javascript">
+      Notification.requestPermission(function (status) {
+        // 这将使我们能在 Chrome/Safari 中使用 Notification.permission
+        if (Notification.permission !== status) {
+          Notification.permission = status;
+        }
+      });
+
+      let text = document.querySelector("#text");
+      let connectBtn = document.querySelector("#connect");
+      let sentBtn = document.querySelector("#sent");
+      let disconnectBtn = document.querySelector("#disconnect");
+      let logDiv = document.querySelector("#log");
+
+      let ws = null;
+      let sendName=randomName.getNickName() ;
+
+      function connect() {
+        let targetUri = "/connect";
+        ws = new SockJS(targetUri);
+        ws.onopen = function () {
+          setConnected(true);
+          log("和服务端连接成功！");
+        };
+        ws.onmessage = function (event) {
+          // log('服务端说：' + event.data);
+          var n = new Notification(event.data);
+          log(event.data, "left",sendName);
+        };
+        ws.onclose = function () {
+          setConnected(false);
+          log("和服务端断开连接！");
+        };
+      }
+
+      function keypress(e) {
+        var keyCode = null;
+        if (e.which) keyCode = e.which;
+        else if (e.keyCode) keyCode = e.keyCode;
+        if (keyCode == 13) {
+          sent();
+          return false;
+        }
+        return true;
+      }
+      function sent() {
+        if (ws != null && text.value != "") {
+          //ws.send(randomName.getNickName() + ": " + text.value);
+          ws.send(sendName+ ": " + text.value);
+
+          log(text.value,'',sendName);
+        } else {
+          log("请先建立连接！");
+        }
+        text.value = "";
+      }
+
+      function disconnect() {
+        if (ws != null) {
+          ws.close();
+          ws = null;
+        }
+        setConnected(false);
+      }
+
+      function log(value, pos,sendName) {
+        // <div className="dialog1">
+        //   <div className="word1">一二三四一二三四一二三四一二三四一二三四一二三四一二三四一二三四一二三四一二三四</div>
+        // </div>
+
+        let content = document.createElement("div");
+        let word = document.createElement("div");
+        let nickname = document.createElement("div");
+        if (pos == "left") {
+          content.className = "dialog1";
+          word.className = "word1";
+          nickname.className = "nickname1";
+
+
+        } else {
+          content.className = "dialog2";
+          word.className = "word2";
+          nickname.className = "nickname2";
+        }
+        content.appendChild(word);
+        word.innerHTML = value;
+        nickname.innerHTML = sendName;
+        logDiv.appendChild(nickname);
+        logDiv.appendChild(content);
+        word.scrollIntoView();
+      }
+
+      function setConnected(connected) {
+        // connectBtn.disabled = connected;
+        // disconnectBtn.disabled = !connected;
+        // sentBtn.disabled = !connected;
+      }
+
+      connect();
+    </script>
+  </body>
+</html>
